@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Visualización Interactiva</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    #lista { display: flex; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+    .item {
+      width: 40px; height: 40px; margin: 2px;
+      line-height: 40px; text-align: center;
+      border: 1px solid #ccc; background-color: #f8f9fa;
+      border-radius: 5px;
+    }
+    .check { background-color: orange; }
+    .found { background-color: green; color: white; }
+  </style>
+</head>
+<body class="container py-4">
+
+  <h2 class="text-center mb-4">🔍 Búsqueda Visual Interactiva (Flask + HTML)</h2>
+
+  <form id="formulario" class="row g-3 mb-3">
+    <div class="col-md-3">
+      <input type="number" name="cantidad" class="form-control" value="30" min="5" max="200" required placeholder="Cantidad">
+    </div>
+    <div class="col-md-3">
+      <input type="number" id="valor" class="form-control" value="42" required placeholder="Valor a buscar">
+    </div>
+    <div class="col-md-3">
+      <select id="tipo" class="form-select">
+        <option value="lineal">Lineal</option>
+        <option value="binaria">Binaria</option>
+      </select>
+    </div>
+    <div class="col-md-3 d-flex gap-2">
+      <button type="submit" class="btn btn-secondary w-100">Generar Lista</button>
+      <button type="button" onclick="buscar()" class="btn btn-primary w-100">Buscar</button>
+    </div>
+  </form>
+
+  <div id="lista"></div>
+  <div id="mensaje" class="text-center fs-5 mt-3 text-info"></div>
+
+  <script>
+    let lista = [];
+
+    document.getElementById('formulario').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const res = await fetch('/generar', { method: 'POST', body: formData });
+      const data = await res.json();
+      lista = data.lista;
+      renderLista();
+      document.getElementById('mensaje').textContent = '';
+    });
+
+    function renderLista(highlight = -1, found = -1) {
+      const div = document.getElementById('lista');
+      div.innerHTML = '';
+      lista.forEach((val, i) => {
+        const box = document.createElement('div');
+        box.className = 'item';
+        box.textContent = val;
+        if (i === highlight) box.classList.add('check');
+        if (i === found) box.classList.add('found');
+        div.appendChild(box);
+      });
+    }
+
+    function buscar() {
+      const valor = document.getElementById('valor').value;
+      const tipo = document.getElementById('tipo').value;
+      const evtSource = new EventSource(`/buscar?valor=${valor}&tipo=${tipo}`);
+      document.getElementById('mensaje').textContent = "Buscando...";
+
+      evtSource.onmessage = function(event) {
+        const partes = event.data.split(',');
+        const accion = partes[0];
+        const dato = partes[1];
+        const tiempo = partes[2] || null;
+
+        if (accion === "found") {
+            renderLista(-1, parseInt(dato));
+            document.getElementById('mensaje').textContent =
+            `✅ Valor encontrado en posición ${dato} — ⏱️ ${tiempo} ms`;
+            evtSource.close();
+        } else if (accion === "notfound") {
+            document.getElementById('mensaje').textContent =
+            `❌ Valor no encontrado — ⏱️ ${tiempo} ms`;
+            evtSource.close();
+        } else {
+            renderLista(parseInt(accion));
+        }
+        };
+
+    }
+  </script>
+
+</body>
+</html>
